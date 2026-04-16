@@ -1,36 +1,53 @@
 ---
 name: digital-avatar
-description: "AI拟人数字人系统 - 根据SOUL.md、MEMORY.md等数据生成个性化数字人形象，实时展示状态和表情。使用预生成的数字人图片，支持多种表情变化，通过Web界面展示。"
-version: 2.0.0
+description: "AI拟人数字人系统 - 根据对话状态实时展示表情视频，支持 config.json 配置驱动角色选择。"
+version: 2.1.0
 ---
 
-# Digital Avatar - AI 拟人数字人
+# Digital Avatar - AI 拟人数字人 (v2.1.0)
 
-根据人格数据展示个性化数字人形象，实时切换状态和表情。
+基于视频的数字人展示系统，支持表情切换和音视频同步。
 
 ## 功能
 
-- 🎭 **人格构建**: 从 SOUL.md、MEMORY.md 提取人格特征
-- 🖼️ **预生成图片**: 使用预生成的数字人图片，无需 API Key
-- 😊 **表情变化**: 根据对话状态自动切换表情和图片
-- 🖥️ **Web 展示**: 独立窗口显示数字人
+- 🎭 **视频驱动**: 使用预录视频展示表情，流畅自然
+- 😊 **实时表情**: 根据对话状态自动切换表情
+- 🔊 **音画同步**: speaking 状态与 TTS 音频同步播放
+- ⚙️ **配置驱动**: 通过 config.json 配置角色和端口
 
-## 新版本特性 (v2.0.0)
+## 新版本特性 (v2.1.0)
 
-✅ **无需 API Key**: 使用预生成的数字人图片，无需智谱 API Key
-✅ **自动表情切换**: 根据对话内容自动切换表情和图片
-✅ **多种图片类型**: 支持正面照、说话、多种表情等图片类型
-✅ **随机选择**: 同一类型图片随机选择，增加多样性
+✅ **Config 驱动**: 通过 `config.json` 配置角色和端口，无需代码修改
+✅ **简化架构**: 移除真人/灵宠切换逻辑，单一角色专注
+✅ **目录重组**: 每个角色有独立的视频目录 `assets/{pet1,pet2}/`
+✅ **Hooks 精简**: 移除无用 hooks，保留核心功能
 
-## Hook 事件
+## 目录结构
 
-| Hook | 事件 | 功能 |
-|------|------|------|
-| on-bootstrap | 启动时 | 加载预生成图片、启动展示服务 |
-| before-context-build | 构建上下文前 | 显示欢迎状态 |
-| before-llm-call | LLM调用前 | 显示思考状态 |
-| after-llm-call | LLM调用后 | 根据表情切换图片 |
-| on-session-end | 会话结束 | 恢复默认状态 |
+```
+digital-avatar/
+├── assets/
+│   ├── pet1/                    # 灵宠角色1
+│   │   ├── expressions/         # 表情视频
+│   │   ├── neutral/             # 待机视频
+│   │   ├── speaking/            # 说话视频
+│   │   └── transition/          # 过渡视频
+│   └── pet2/                    # 灵宠角色2
+│       ├── expressions/
+│       ├── neutral/
+│       ├── speaking/
+│       └── transition/
+├── scripts/
+│   ├── display_server.py        # Web 服务
+│   ├── start_server.py          # 启动脚本
+│   ├── video_queue.py           # 视频队列
+│   ├── transition_manager.py    # 过渡管理
+│   └── expression_manager.py    # 表情检测
+└── hooks/
+    ├── on-bootstrap/            # 启动时启动服务
+    ├── on-response/             # 响应后切换表情
+    └── on-session-start/        # 会话开始
+```
 
 ## 配置
 
@@ -41,145 +58,119 @@ version: 2.0.0
   "hooks": {
     "hook_options": {
       "digital-avatar": {
+        "avatar": "pet1",
         "display_port": 18791,
-        "auto_open": true,
-        "regenerate_days": 7
+        "auto_open": true
       }
     }
   }
 }
 ```
 
-## 配置选项
+### 配置选项
 
-| 选项 | 默认值 | 说明 |
-|------|--------|------|
-| display_port | 18791 | Web服务端口 |
-| auto_open | true | 是否自动打开浏览器 |
-| regenerate_days | 7 | 重新加载天数（v2.0.0 已废弃，保留兼容性） |
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| avatar | string | "pet1" | 角色ID (pet1, pet2) |
+| display_port | int | 18791 | Web服务端口 |
+| auto_open | bool | true | 是否自动打开浏览器 |
 
-## 图片类型
+## 视频文件命名规范
 
-数字人图片分为三种类型：
+### 表情视频 (`expressions/`)
+- `expression-{表情名}.mp4`
+- 例如: `expression-happy.mp4`, `expression-thinking.mp4`
 
-| 类型 | 说明 | 表情映射 |
-|------|------|----------|
-| neutral | 正面照 | 默认状态、平静 |
-| speaking | 说话 | 思考、工作中、说话 |
-| expression | 多种表情 | 开心、悲伤、惊讶、困惑 |
+### 待机视频 (`neutral/`)
+- 任意 `.mp4` 文件，取第一个
 
-## 表情映射
+### 说话视频 (`speaking/`)
+- 任意 `.mp4` 文件，取第一个
 
-| 表情 | 图片类型 | 触发关键词 |
-|------|----------|------------|
-| neutral | neutral | 默认状态 |
-| happy | expression | 开心、成功、完成、谢谢 |
-| thinking | speaking | 思考、分析、正在 |
-| sad | expression | 抱歉、遗憾、对不起 |
-| surprised | expression | 惊讶、哇、天哪 |
-| confused | expression | 困惑、错误、失败 |
-| working | speaking | 执行、处理、调用 |
-| speaking | speaking | 说、告诉、回答 |
-| rolleyes | expression | 翻白眼、无语、呵呵、哼、切 |
+### 过渡视频 (`transition/`)
+- `{源状态}-{目标状态}.mp4`
+- 例如: `neutral-speaking.mp4`, `working-happy.mp4`
 
-## 添加自定义图片
+## 表情类型
 
-在 `assets/` 目录中添加图片，文件名包含以下关键词即可自动分类：
+| 表情 | 视频位置 | 触发场景 |
+|------|----------|----------|
+| neutral | neutral/ | 默认待机状态 |
+| speaking | speaking/ | 助手说话时 |
+| happy | expressions/ | 成功、完成、感谢 |
+| thinking | expressions/ | 思考、分析中 |
+| working | expressions/ | 执行工具、处理中 |
+| sad | expressions/ | 抱歉、遗憾 |
+| surprised | expressions/ | 惊讶、意外 |
+| confused | expressions/ | 困惑、错误 |
+| rolleyes | expressions/ | 无语、翻白眼 |
 
-- **正面照**: 文件名包含 "正面照"
-- **说话**: 文件名包含 "说话"
-- **多种表情**: 文件名包含 "表情"
+## 使用
 
-示例：
-```
-assets/
-├── my-avatar-neutral.png          # 正面照
-├── my-avatar-speaking-1.png       # 说话
-├── my-avatar-speaking-2.png       # 说话
-└── my-avatar-expression-happy.png # 多种表情
-```
-
-## 依赖安装
+### 启动服务
 
 ```bash
-pip install aiohttp httpx prompt_toolkit
+cd scripts
+python3 start_server.py
 ```
 
-## 脚本说明
+或让 nanobot 在启动时自动加载（通过 on-bootstrap hook）。
 
-### persona_builder.py
-从 SOUL.md 和 MEMORY.md 提取人格特征，构建 Persona 对象。
-
-### avatar_generator.py
-从预生成的图片中选择合适的数字人图片，支持表情映射和随机选择。
-
-### expression_manager.py
-根据对话上下文检测表情，支持多种表情类型和关键词映射。
-
-### display_server.py
-Web 展示服务，提供实时状态更新和表情展示。
-
-## 使用示例
-
-### 启动数字人
-
-```bash
-# 启动 nanobot，数字人会自动加载
-nanobot
-```
-
-### 查看数字人
+### 访问数字人
 
 打开浏览器访问: `http://127.0.0.1:18791`
 
-### 对话中的表情变化
+### 切换角色
 
-```
-用户: 你好！
-助手: 你好！😊 (自动切换到 happy 表情)
+修改 `config.json` 中的 `avatar` 字段，重启服务：
 
-用户: 帮我分析一下这个文件
-助手: 好的，让我分析一下...🤔 (自动切换到 thinking 表情)
-
-用户: 谢谢！
-助手: 不客气！😊 (自动切换到 happy 表情)
-```
-
-## 故障排除
-
-### 图片未加载
-
-检查 `assets/` 目录是否存在图片：
-```bash
-ls -la /path/to/digital-avatar/assets/
-```
-
-### 端口被占用
-
-修改配置中的 `display_port`：
 ```json
 {
   "hooks": {
     "hook_options": {
       "digital-avatar": {
-        "display_port": 18792
+        "avatar": "pet2"  // 切换到角色2
       }
     }
   }
 }
 ```
 
+## 依赖安装
+
+```bash
+pip install aiohttp loguru
+```
+
+## 故障排除
+
+### 视频未加载
+
+检查角色目录是否存在：
+```bash
+ls -la assets/pet1/
+```
+
+### 端口被占用
+
+修改 `config.json` 中的 `display_port`。
+
 ### 表情未切换
 
-检查 `expression_manager.py` 中的关键词映射是否包含你的对话内容。
+检查 `expression_manager.py` 中的关键词映射。
 
 ## 版本历史
 
+### v2.1.0 (2026-04-16)
+- ✨ Config.json 配置驱动角色选择
+- ✨ 简化架构，移除真人/灵宠切换逻辑
+- ✨ 目录重组：每个角色独立文件夹
+- ✨ 移除无用 hooks
+
 ### v2.0.0 (2026-03-13)
-- ✨ 使用预生成的数字人图片，无需 API Key
-- ✨ 根据表情自动切换图片
-- ✨ 支持多种图片类型和表情映射
-- ✨ 同一类型图片随机选择
+- ✨ 使用预生成视频，无需 API Key
+- ✨ 音画同步支持
+- ✨ 视频过渡动画
 
 ### v1.0.0
-- 初始版本，使用智谱 CogView API 生成图片
+- 初始版本
